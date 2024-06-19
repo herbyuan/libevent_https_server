@@ -28,7 +28,7 @@ using namespace std;
 #define port "9998"
 #define ssl_cert "./cert/cert.pem"
 #define ssl_key "./cert/key.pem"
-#define root_path "blog/public"
+#define root_path "public"
  
 
 int main()

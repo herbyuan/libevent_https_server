@@ -18,7 +18,7 @@ link_libraries(OpenSSL::SSL OpenSSL::Crypto)
 # link_libraries(OpenSSL)
 # link_libraries(Libevent)
 
-add_executable(http-server http-server.cpp)
+# add_executable(http-server http-server.cpp)
 add_executable(server server.cpp utils.cpp)
 
 
