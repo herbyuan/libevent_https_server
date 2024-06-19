@@ -17,11 +17,18 @@
 #include <event2/listener.h>
 #include <event2/bufferevent_ssl.h>
 
-#include <fmt/core.h>
+// #include <fmt/core.h>
 
 #include "utils.h"
 
 using namespace std;
+
+#define use_ssl 1
+#define address "0.0.0.0"
+#define port "9998"
+#define ssl_cert "./cert/cert.pem"
+#define ssl_key "./cert/key.pem"
+#define root_path "blog/public"
  
 
 int main()
@@ -36,29 +43,24 @@ int main()
         return 1;
     }
 #endif
+    std::cout << "=============" << std::endl;
     const char *version = event_get_version();
     std::cout << "Libevent version: " << version << std::endl;
-    bool use_ssl = 1;
-    string address = "0.0.0.0";
-    string port = "9999";
-    string ssl_cert = "./z2_cert/cert.pem";
-    string ssl_key = "./z2_cert/key.pem";
-    std::string root_path = "blog/public";
-    SetRoot("blog/public");
+    SetRoot(root_path);
     event_base *evbase = event_base_new();
     evhttp *httpd = evhttp_new(evbase);
-    if (evhttp_bind_socket(httpd, address.c_str(), stoi(port)) == -1)
+    if (evhttp_bind_socket(httpd, address, stoi(port)) == -1)
     {
         cerr << "Bind socket error" << endl;
     }
 
     SSL_CTX *ctx = nullptr;
-    ctx = create_ctx_with_cert(ssl_cert.c_str(), ssl_key.c_str());
+    ctx = create_ctx_with_cert(ssl_cert, ssl_key);
     if (ctx != nullptr && use_ssl)
     {
         evhttp_set_bevcb(httpd, SSL_bufferevent_cb, ctx);
         cout << "Listening on https://" << address << ":" << port << endl;
-        cout << "Please visit https://z2.zhuoyuan-he.cn:" << port << endl;
+        cout << "Please visit https://local.zhuoyuan-he.cn:" << port << endl;
     }
     else
     {

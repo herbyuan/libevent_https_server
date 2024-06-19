@@ -24,15 +24,13 @@
 #include <event2/listener.h>
 #include <event2/bufferevent_ssl.h>
 
-#include <fmt/core.h>
-
-#include <sys/stat.h>
 
 
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#include <iconv.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -76,23 +74,23 @@
 # endif
 #endif
 
-#ifdef _WIN32
-#ifndef stat
-#define stat _stat
-#endif
-#ifndef fstat
-#define fstat _fstat
-#endif
-#ifndef open
-#define open _open
-#endif
-#ifndef close
-#define close _close
-#endif
-#ifndef O_RDONLY
-#define O_RDONLY _O_RDONLY
-#endif
-#endif /* _WIN32 */
+// #ifdef _WIN32
+// #ifndef stat
+// #define stat _stat
+// #endif
+// #ifndef fstat
+// #define fstat _fstat
+// #endif
+// #ifndef open
+// #define open _open
+// #endif
+// #ifndef close
+// #define close _close
+// #endif
+// #ifndef O_RDONLY
+// #define O_RDONLY _O_RDONLY
+// #endif
+// #endif /* _WIN32 */
 
 SSL_CTX *create_ctx_with_cert(char const *cert, char const *key);
 bufferevent *SSL_bufferevent_cb(event_base *base, void *arg);

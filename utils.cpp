@@ -5,34 +5,85 @@
 
 std::string root_path = "html";
 
-std::string urlDecode(const std::string &str)
+std::string urlDecode(std::string str)
 {
-    std::ostringstream decoded;
-
-    for (size_t i = 0; i < str.size(); ++i)
-    {
-        if (str[i] == '%')
-        {
-            if (i + 2 < str.size())
-            {
-                int hexValue;
-                std::istringstream hexStream(str.substr(i + 1, 2));
-                hexStream >> std::hex >> hexValue;
-                decoded << static_cast<char>(hexValue);
+    std::string utf8_str;
+    for (size_t i = 0; i < str.size(); ++i) {
+        if (str[i] == '%') {
+            if (i + 2 < str.size()) {
+                int hex;
+                sscanf(str.substr(i + 1, 2).c_str(), "%x", &hex);
+                utf8_str += static_cast<char>(hex);
                 i += 2;
             }
-        }
-        else if (str[i] == '+')
-        {
-            decoded << ' ';
-        }
-        else
-        {
-            decoded << str[i];
+        } else if (str[i] == '+') {
+            utf8_str += ' ';
+        } else {
+            utf8_str += str[i];
         }
     }
-    return decoded.str();
+
+#ifdef _WIN32
+    // Convert UTF-8 to GBK
+    iconv_t cd = iconv_open("GBK", "UTF-8");
+    if (cd == (iconv_t)-1) {
+        std::cerr << "iconv_open failed" << std::endl;
+        return "";
+    }
+
+    char *inbuf = &utf8_str[0];
+    size_t inbytesleft = utf8_str.size();
+    size_t outbytesleft = inbytesleft * 2;  // GBK may use up to 2 bytes per character
+    char outbuf[outbytesleft];
+
+    char *outptr = outbuf;
+    size_t result = iconv(cd, &inbuf, &inbytesleft, &outptr, &outbytesleft);
+    if (result == (size_t)-1) {
+        std::cerr << "iconv failed" << std::endl;
+        return "";
+    }
+
+    // Null-terminate the output buffer
+    *outptr = '\0';
+
+    std::string gbk_str(outbuf);
+
+    iconv_close(cd);
+    return gbk_str;
+#else
+    return utf8_str.c_str();
+#endif
 }
+
+
+// std::string urlDecode(const std::string &str)
+// {
+//     std::ostringstream decoded;
+
+//     for (size_t i = 0; i < str.size(); ++i)
+//     {
+//         if (str[i] == '%')
+//         {
+//             if (i + 2 < str.size())
+//             {
+//                 int hexValue;
+//                 std::istringstream hexStream(str.substr(i + 1, 2));
+//                 hexStream >> std::hex >> hexValue;
+//                 decoded << static_cast<char>(hexValue);
+//                 i += 2;
+//             }
+//         }
+//         else if (str[i] == '+')
+//         {
+//             decoded << ' ';
+//         }
+//         else
+//         {
+//             decoded << str[i];
+//         }
+//     }
+//     return decoded.str();
+// }
 
 char const *GetResponseStr(long code)
 {
@@ -285,7 +336,7 @@ void serve_file2(evhttp_request *req, std::string path)
     FILE *fp = fopen(path.c_str(), "rb");
     if (!fp)
     {
-        send_simple_response(req, HTTP_NOTFOUND, fmt::format("{}", path).c_str());
+        send_simple_response(req, HTTP_NOTFOUND, path.c_str());
         return;
     }
     // Get the file size
@@ -357,7 +408,7 @@ void serve_file2(evhttp_request *req, std::string path)
     std::cout << "Sending whole file" << std::endl;
     if (evbuffer_add_file(outbuf, fd, 0, -1) == -1)
     {
-        send_simple_response(req, HTTP_NOTFOUND, fmt::format("Failed to add file to buffer.").c_str());
+        send_simple_response(req, HTTP_NOTFOUND, "Failed to add file to buffer.");
         fprintf(stderr, "Failed to add file to buffer.\n");
     }
     
@@ -370,7 +421,7 @@ void serve_file(evhttp_request *req, std::string path)
     std::string content;
     if (file_read(path, content) != 0)
     {
-        send_simple_response(req, HTTP_NOTFOUND, fmt::format("{}", path).c_str());
+        send_simple_response(req, HTTP_NOTFOUND, path.c_str());
         return;
     }
 
@@ -395,26 +446,36 @@ void handle_web_client(evhttp_request *req, void *arg)
     path = evhttp_uri_get_path(decoded);
     if (!path)
         path = "/";
-    char *decoded_path;
-    decoded_path = evhttp_uridecode(path, 0, NULL);
-    if (decoded_path == NULL)
+    std::string decoded_path;
+    // decoded_path = evhttp_uridecode(path, 0, NULL);
+    decoded_path = urlDecode(path);
+    std::cout << decoded_path << std::endl;
+    if (decoded_path == "")
     {
         evhttp_send_error(req, HTTP_BADREQUEST, 0);
         return;
     }
-    if (strstr(decoded_path, ".."))
+    if (decoded_path.find("..") != std::string::npos)
     {
         send_simple_response(req, HTTP_NOTFOUND);
         return;
     }
-    std::string whole_path = root_path + "/" + decoded_path;
+    std::string whole_path = root_path + decoded_path;
+    // Remove trailing slash
+    while (!whole_path.empty() && whole_path.back() == '/') {
+        whole_path.pop_back();
+    }
+    std::cout << "whole_path = " << whole_path << std::endl;
+
     struct stat st;
     if (stat(whole_path.c_str(), &st)<0) {
-		evhttp_send_error(req, HTTP_BADREQUEST, 0);
+        evhttp_send_error(req, HTTP_BADREQUEST, 0);
         return;
-	}
+    }
+
     if (S_ISDIR(st.st_mode))
     {
+        std::cout << "dir requested." << std::endl;
         /* If it's a directory and no index page, read the comments and make a little
          * index page */
         if (std::empty(whole_path) || whole_path.back() != '/')
@@ -424,6 +485,7 @@ void handle_web_client(evhttp_request *req, void *arg)
         FILE *fp = fopen((whole_path + "index.html").c_str(), "rb");
         if (!fp)
         {
+            std::cout << "index.html doesn't exist, list dir" << std::endl;
             // list dir
             std::cout << "list dir: " << whole_path << std::endl;
             /* If it's a directory, read the comments and make a little
@@ -443,16 +505,19 @@ void handle_web_client(evhttp_request *req, void *arg)
                 trailing_slash = "/";
 
 #ifdef _WIN32
-            dirlen = strlen(whole_path);
-            pattern = malloc(dirlen + 3);
-            memcpy(pattern, whole_path, dirlen);
+            dirlen = strlen(whole_path.c_str());
+            pattern = static_cast<char*> (malloc(dirlen + 3));
+            memcpy(pattern, whole_path.c_str(), dirlen);
             pattern[dirlen] = '\\';
             pattern[dirlen + 1] = '*';
             pattern[dirlen + 2] = '\0';
             d = FindFirstFileA(pattern, &ent);
             free(pattern);
             if (d == INVALID_HANDLE_VALUE)
-                goto err;
+            {
+                std::cout << "error _win32" << std::endl;
+                return;
+            }
 #else
             if (!(d = opendir(whole_path.c_str())))
             {
@@ -480,11 +545,20 @@ void handle_web_client(evhttp_request *req, void *arg)
 #ifdef _WIN32
             do
             {
-                const char *name = ent.cFileName;
+                std::string name = ent.cFileName;
+                if (ent.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    name += "/";
+                }
+                files.push_back(name);
 #else
             while ((ent = readdir(d)))
             {
-                const char *name = ent->d_name;
+                std::string name = ent->d_name;
+                if (ent->d_type == DT_DIR)
+                {
+                    name += "/";
+                }
                 files.push_back(name);
 #endif
 
@@ -518,15 +592,17 @@ void handle_web_client(evhttp_request *req, void *arg)
         }
         else
         {
+            std::cout << "index.html exists" << std::endl;
             fclose(fp);
             whole_path += "index.html";
             serve_file2(req, whole_path);
         }
+        return;
     }
-    else
-    {
-        serve_file2(req, whole_path);
-    }
+    if (whole_path.back() == '/')
+        whole_path += "index.html";
+    serve_file2(req, whole_path);
+    
 
     // // remove any trailing query / fragment
     // subpath = subpath.substr(0, subpath.find_first_of("?#"));
@@ -625,13 +701,13 @@ SSL_CTX *create_ctx_with_cert(char const *cert, char const *key)
     }
     if (SSL_CTX_use_certificate_chain_file(ctx, cert) != 1)
     {
-        fmt::print("Couldn't set RPC SSL with cert file {}\n", cert);
+        printf("Couldn't set RPC SSL with cert file %s\n", cert);
         SSL_CTX_free(ctx);
         return nullptr;
     }
     if (SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM) != 1)
     {
-        fmt::print("Couldn't set RPC SSL with key file {}\n", key);
+        printf("Couldn't set RPC SSL with key file %s\n", key);
         SSL_CTX_free(ctx);
         return nullptr;
     }
