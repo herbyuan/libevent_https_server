@@ -5,6 +5,26 @@
 
 std::string root_path = "html";
 
+#include <windows.h>
+
+#ifdef _WIN32
+std::string utf8_to_gbk(const std::string &utf8str) {
+    std::string gbkstr;
+    int size = MultiByteToWideChar(CP_UTF8, 0, utf8str.c_str(), -1, NULL, 0);
+    wchar_t *wstr = new wchar_t[size];
+    MultiByteToWideChar(CP_UTF8, 0, utf8str.c_str(), -1, wstr, size);
+
+    size = WideCharToMultiByte(936, 0, wstr, -1, NULL, 0, NULL, NULL); // 936 is the code page for GBK
+    char *str = new char[size];
+    WideCharToMultiByte(936, 0, wstr, -1, str, size, NULL, NULL);
+    gbkstr = str;
+    delete[] wstr;
+    delete[] str;
+    return gbkstr;
+}
+#endif
+
+
 std::string urlDecode(std::string str)
 {
     std::string utf8_str;
@@ -24,31 +44,32 @@ std::string urlDecode(std::string str)
     }
 
 #ifdef _WIN32
-    // Convert UTF-8 to GBK
-    iconv_t cd = iconv_open("GBK", "UTF-8");
-    if (cd == (iconv_t)-1) {
-        std::cerr << "iconv_open failed" << std::endl;
-        return "";
-    }
+    // // Convert UTF-8 to GBK
+    // iconv_t cd = iconv_open("GBK", "UTF-8");
+    // if (cd == (iconv_t)-1) {
+    //     std::cerr << "iconv_open failed" << std::endl;
+    //     return "";
+    // }
 
-    char *inbuf = &utf8_str[0];
-    size_t inbytesleft = utf8_str.size();
-    size_t outbytesleft = inbytesleft * 2;  // GBK may use up to 2 bytes per character
-    char outbuf[outbytesleft];
+    // char *inbuf = &utf8_str[0];
+    // size_t inbytesleft = utf8_str.size();
+    // size_t outbytesleft = inbytesleft * 2;  // GBK may use up to 2 bytes per character
+    // char outbuf[outbytesleft];
 
-    char *outptr = outbuf;
-    size_t result = iconv(cd, &inbuf, &inbytesleft, &outptr, &outbytesleft);
-    if (result == (size_t)-1) {
-        std::cerr << "iconv failed" << std::endl;
-        return "";
-    }
+    // char *outptr = outbuf;
+    // size_t result = iconv(cd, &inbuf, &inbytesleft, &outptr, &outbytesleft);
+    // if (result == (size_t)-1) {
+    //     std::cerr << "iconv failed" << std::endl;
+    //     return "";
+    // }
 
-    // Null-terminate the output buffer
-    *outptr = '\0';
+    // // Null-terminate the output buffer
+    // *outptr = '\0';
 
-    std::string gbk_str(outbuf);
+    // std::string gbk_str(outbuf);
 
-    iconv_close(cd);
+    // iconv_close(cd);
+    std::string gbk_str = utf8_to_gbk(utf8_str);
     return gbk_str;
 #else
     return utf8_str.c_str();
@@ -258,10 +279,24 @@ bool endsWith(std::string_view str, std::string_view suffix)
     return str.substr(str.length() - suffix.length()) == suffix;
 }
 
+std::string getExtension(std::string path)
+{
+    size_t pos = path.find_last_of('.');
+    if (pos != std::string::npos)
+    {
+        return path.substr(pos);
+    }
+    else
+    {
+        return path; // 如果没有找到点，返回整个字符串作为后缀名
+    }
+}
+
 char const *mimetype_guess(std::string path)
 {
     // these are the ones we need for serving the web client's files...
-    std::array<std::pair<std::string, char const *>, 10> Types = {{
+    std::unordered_map<std::string, const char *> cases =
+    {
         {".css", "text/css"},
         {".gif", "image/gif"},
         {".html", "text/html"},
@@ -271,18 +306,43 @@ char const *mimetype_guess(std::string path)
         {".jpg", "image/jpeg"},
         {".mp4", "video/mp4"},
         {".svg", "image/svg+xml"},
-        {".mkv", "video/x-matroska"},
-    }};
+        {".mkv", "video/x-matroska"}
+    };
 
-    for (auto const &[suffix, mime_type] : Types)
+    // Check if the string exists in the unordered_map
+    std::string suffix = getExtension(path);
+    auto it = cases.find(suffix);
+    if (it != cases.end())
     {
-        if (endsWith(path, suffix))
-        {
-            return mime_type;
-        }
+        std::cout << it->second << std::endl;
+        return it->second;
     }
+    else
+    {
+        return "application/octet-stream";
+    }
+    // std::array<std::pair<std::string, char const *>, 10> Types = {{
+    //     {".css", "text/css"},
+    //     {".gif", "image/gif"},
+    //     {".html", "text/html"},
+    //     {".ico", "image/vnd.microsoft.icon"},
+    //     {".js", "application/javascript"},
+    //     {".png", "image/png"},
+    //     {".jpg", "image/jpeg"},
+    //     {".mp4", "video/mp4"},
+    //     {".svg", "image/svg+xml"},
+    //     {".mkv", "video/x-matroska"}
+    // }};
 
-    return "application/octet-stream";
+    // for (auto const &[suffix, mime_type] : Types)
+    // {
+    //     if (endsWith(path, suffix))
+    //     {
+    //         return mime_type;
+    //     }
+    // }
+
+    // return "application/octet-stream";
 }
 
 int file_read(const std::string &filename, std::string &content)
@@ -308,7 +368,7 @@ int file_read2(const std::string &filename, std::string &content)
     char buf[1024] = {0};
     for (;;)
     {
-        int len = fread(buf, 1, sizeof(buf), fp);
+        size_t len = fread(buf, 1, sizeof(buf), fp);
         if (len <= 0)
             break;
         content.append(buf, len);
@@ -406,7 +466,7 @@ void serve_file2(evhttp_request *req, std::string path)
     }
 
     std::cout << "Sending whole file" << std::endl;
-    if (evbuffer_add_file(outbuf, fd, 0, -1) == -1)
+    if (evbuffer_add_file(outbuf, (int)fd, 0, -1) == -1)
     {
         send_simple_response(req, HTTP_NOTFOUND, "Failed to add file to buffer.");
         fprintf(stderr, "Failed to add file to buffer.\n");
@@ -631,9 +691,9 @@ void OnRequest(evhttp_request *req, void *arg)
         std::cout << "ERROR at handle_request()\n";
         return;
     }
-    struct evkeyvalq *headers = evhttp_request_get_input_headers(req);
-    struct evkeyval *header;
 
+    // struct evkeyvalq *headers = evhttp_request_get_input_headers(req);
+    // struct evkeyval *header;
     // std::cout << "======Request Headers:" << std::endl;
     // for (header = headers->tqh_first; header; header = header->next.tqe_next) {
     //     std::cout << header->key << ": " << header->value << std::endl;
@@ -720,14 +780,14 @@ SSL_CTX *create_ctx_with_cert(char const *cert, char const *key)
     return nullptr;
 }
 
-bufferevent *SSL_bufferevent_cb(event_base *base, void *arg)
-{
-    bufferevent *ret = nullptr;
-    SSL_CTX *ctx = static_cast<SSL_CTX *>(arg);
-    SSL *ssl = SSL_new(ctx);
-    bufferevent *bev = bufferevent_openssl_socket_new(base, -1, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
-    return bev;
-}
+// bufferevent *SSL_bufferevent_cb(event_base *base, void *arg)
+// {
+//     bufferevent *ret = nullptr;
+//     SSL_CTX *ctx = static_cast<SSL_CTX *>(arg);
+//     SSL *ssl = SSL_new(ctx);
+//     bufferevent *bev = bufferevent_openssl_socket_new(base, -1, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
+//     return bev;
+// }
 
 void SetRoot(const std::string &_rootpath)
 {

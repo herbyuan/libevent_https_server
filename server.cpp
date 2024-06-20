@@ -23,7 +23,7 @@
 
 using namespace std;
 
-#define use_ssl 1
+#define use_ssl 0
 #define address "0.0.0.0"
 #define port "9998"
 #define ssl_cert "./cert/cert.pem"
@@ -56,13 +56,13 @@ int main()
 
     SSL_CTX *ctx = nullptr;
     ctx = create_ctx_with_cert(ssl_cert, ssl_key);
-    if (ctx != nullptr && use_ssl)
-    {
-        evhttp_set_bevcb(httpd, SSL_bufferevent_cb, ctx);
-        cout << "Listening on https://" << address << ":" << port << endl;
-        cout << "Please visit https://local.zhuoyuan-he.cn:" << port << endl;
-    }
-    else
+    // if (ctx != nullptr && use_ssl)
+    // {
+    //     evhttp_set_bevcb(httpd, SSL_bufferevent_cb, ctx);
+    //     cout << "Listening on https://" << address << ":" << port << endl;
+    //     cout << "Please visit https://local.zhuoyuan-he.cn:" << port << endl;
+    // }
+    // else
     {
         cout << "Couldn't set SSL certs" << endl;
         cout << "Listening on http://" << address << ":" << port << endl;
