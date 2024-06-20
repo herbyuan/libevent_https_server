@@ -17,8 +17,8 @@ https server with Libevent
 
 #### 使用说明
 
-1.  windows下只能在 `mingw` 中使用，请使用编译命令 `cmake -G "MinGW Makefiles"`，并处理好需要的库
-2.  理论上处理好了各种包的依赖 `MVSC` 不应该有问题，但我试了一天以失败告终，有成功的请帮帮我
+1.  windows下若使用 `mingw` ，请使用编译命令 `cmake -G "MinGW Makefiles"`，并处理好需要的库
+2. 如果使用 `MVSC` 最好搭配 `vcpkg` 解决依赖，安装 `libevent` 使用命令 `vcpkg install libevent[openssl]` 不然缺少 `libevent_openssl`。 编译使用命令 `cmake ./ -DCMAKE_TOOLCHAIN_FILE=C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake` 不然找不到对应的cmake文件，然后使用命令 `cmake --build ./ --config RelWithDebInfo` 生成可执行文件
 
 #### 功能
 
