@@ -94,7 +94,7 @@
 // #endif /* _WIN32 */
 
 SSL_CTX *create_ctx_with_cert(char const *cert, char const *key);
-// bufferevent *SSL_bufferevent_cb(event_base *base, void *arg);
+bufferevent *SSL_bufferevent_cb(event_base *base, void *arg);
 void OnRequest(evhttp_request *req, void *arg);
 void SetRoot(const std::string & _rootpath);
 

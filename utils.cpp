@@ -1,5 +1,3 @@
-// util.cpp
-
 #include "utils.h"
 #include <iostream>
 
@@ -392,7 +390,30 @@ evbuffer *make_response(struct evhttp_request *req, std::string_view content)
 /* use evbuffer_add_file() to improve perf */
 void serve_file2(evhttp_request *req, std::string path)
 {
-    std::string content;
+    // evbuffer *evb = evbuffer_new();
+    // {
+    //     int fd;
+    //     struct stat st;
+    //     /* Otherwise it's a file; add it to the buffer to get
+    //      * sent via sendfile */
+    //     if ((fd = open(path.c_str(), O_RDONLY)) < 0) {
+    //         printf("open error\n");
+    //         return;
+    //     }
+
+    //     if (fstat(fd, &st)<0) {
+    //         /* Make sure the length still matches, now that we
+    //          * opened the file :/ */
+    //         printf("fstat\n");
+    //         return;
+    //     }
+    //     evhttp_add_header(req->output_headers, "Content-Type", mimetype_guess(path));
+    //     evbuffer_add_file(evb, fd, 0, st.st_size);
+    // }
+    // evhttp_send_reply(req, 200, "OK", evb);
+    // // send_simple_response(req, HTTP_NOTFOUND, path.c_str());
+    // return;
+    // std::string content;
     FILE *fp = fopen(path.c_str(), "rb");
     if (!fp)
     {
@@ -460,8 +481,8 @@ void serve_file2(evhttp_request *req, std::string path)
         evhttp_send_reply(req, 206, "Partial Content", evb);
 
         // Cleanup
-        fclose(fp);
-        evbuffer_free(evb);
+        // fclose(fp);   // no need
+        // evbuffer_free(evb);   // not sure??
         return;
     }
 
@@ -473,7 +494,8 @@ void serve_file2(evhttp_request *req, std::string path)
     }
     
     evhttp_send_reply(req, HTTP_OK, "OK", outbuf);
-    fclose(fp);
+    // fclose(fp);
+    std::cout << "file sent" << std::endl;
 }
 
 void serve_file(evhttp_request *req, std::string path)
@@ -662,6 +684,7 @@ void handle_web_client(evhttp_request *req, void *arg)
     if (whole_path.back() == '/')
         whole_path += "index.html";
     serve_file2(req, whole_path);
+    std::cout << "after serve_file2()" << std::endl;
     
 
     // // remove any trailing query / fragment
@@ -747,6 +770,7 @@ void OnRequest(evhttp_request *req, void *arg)
     if (request_method == EVHTTP_REQ_GET)
     {
         handle_web_client(req, nullptr);
+        std::cout << "after handle_web_client()" << std::endl;
         // evbuffer_add_printf(OutBuf, "<html><body><center><h1>Hello World!</h1></center></body></html>\n");
         // evhttp_send_reply(req, HTTP_OK, "", OutBuf);
     }
@@ -780,16 +804,19 @@ SSL_CTX *create_ctx_with_cert(char const *cert, char const *key)
     return nullptr;
 }
 
-// bufferevent *SSL_bufferevent_cb(event_base *base, void *arg)
-// {
-//     bufferevent *ret = nullptr;
-//     SSL_CTX *ctx = static_cast<SSL_CTX *>(arg);
-//     SSL *ssl = SSL_new(ctx);
-//     bufferevent *bev = bufferevent_openssl_socket_new(base, -1, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
-//     return bev;
-// }
+bufferevent *SSL_bufferevent_cb(event_base *base, void *arg)
+{
+    bufferevent *ret = nullptr;
+    SSL_CTX *ctx = static_cast<SSL_CTX *>(arg);
+    SSL *ssl = SSL_new(ctx);
+    bufferevent *bev = bufferevent_openssl_socket_new(base, -1, ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
+    return bev;
+}
 
 void SetRoot(const std::string &_rootpath)
 {
     root_path = _rootpath;
 }
+
+
+
